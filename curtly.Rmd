@@ -1,0 +1,39 @@
+---
+title: "Webscraping"
+author: "Curtly Blows - BLWCUR001"
+date: "August 21, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+THe aim is to extract the necessary information from this website to use as a reference for a paper or research purposes.
+
+We start by importing the necessary libraries.
+
+```{r, echo=F}
+library(rvest)
+library(tidyverse)
+library(stringr)
+```
+We then load the web page into a variable
+```{r}
+web=read_html("https://www.universetoday.com/30713/galaxy-evolution/")
+```
+We locate and store the different components of the web page. The images can be used to support the information in the text. The actual text which can then be summarised.
+```{r}
+web_imgs = html_nodes(x = web, css = "img")
+web_text=html_nodes(x = web, css = "h2,p")
+```
+We then store the text in plain format, without html characters and store them in a dataframe for easier interperation
+```{r}
+text=html_text(web_text, trim = TRUE)
+text=as.tibble(text)
+```
+We can then extract the first paragraph of text and a picture url 
+```{r}
+text[1]
+web_imgs[6]
+```
+

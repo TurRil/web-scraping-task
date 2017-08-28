@@ -1,0 +1,202 @@
+---
+title: "R Notebook"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      tidy.opts=list(width.cutoff=60),
+                      tidy=TRUE)
+```
+
+```{r}
+
+rm(list = ls())
+
+suppressMessages(library(rvest))
+suppressMessages(library(tidyverse))
+suppressMessages(library(stringr))
+```
+
+# Introduction
+
+The goal of this script is to retrieve information about cars from Autortrader.co.za in order to analyse it.
+
+# Scraping
+
+Because there are over 60 000 vehicles listed on Autotrader.co.za, only one vehicle brand will be investigated - in this case "Hyundai":
+
+```{r}
+brand_select <- "hyundai"
+```
+
+After some investigation, the GET request to retrieve the search page with the most results for a specific brand was discovered. The brand name is substituted into the GET request url:
+
+```{r}
+search_page_0_address <- paste0("https://www.autotrader.co.za/makemodel/make/", toupper(brand_select), "/perpage/60/search")
+```
+
+From the search page, retrieve all the links to individual vehicles:
+
+```{r}
+
+#Read the search page
+search_page_0 <- read_html(search_page_0_address)
+
+# select all "a" tags with class "mobile-cav-link" (add #id_name before tag.name as an option)
+search_page_0_elements <- html_nodes(x = search_page_0, "a.mobile-cav-link")
+car_links <- search_page_0_elements %>% html_attr("href")
+
+last_page <- search_page_0 %>% html_node("li.to-last-page") %>% html_attr("data-page") %>% as.numeric()
+
+```
+
+Once we have links to all the vehicles on the first search page, set up a loop in order to collect information from each individual vehicle's page:
+
+```{r}
+
+#####
+page_data <- read_html(car_links[1])
+
+vehicle_data <- rbind(
+    data.frame("spec" = page_data %>% html_nodes("div.spec-name") %>% html_text(),
+             "val" = page_data %>% html_nodes("div.spec-value") %>% html_text()),
+    data.frame("spec" = page_data %>% html_nodes("span.label") %>% html_text(),
+             "val" = page_data %>% html_nodes("span.value") %>% html_text()),
+    data.frame("spec" = "Price",
+             "val" = page_data %>% html_nodes("div.price") %>% html_nodes("h2") %>% html_text()),
+    data.frame("spec" = "URL",
+             "val" = car_links[1])
+  )
+
+all_veh_data <- data.frame(t(vehicle_data))
+colnames(all_veh_data) <- unlist(all_veh_data[1,])
+all_veh_data <- all_veh_data[-1,]
+
+### now get the info for the rest of the links
+
+# for (i in 2:length(car_links)){
+for (i in 2:60){
+
+  link <- car_links[i]
+  page_data <- read_html(link)
+  
+  vehicle_data <- rbind(
+    data.frame("spec" = page_data %>% html_nodes("div.spec-name") %>% html_text(),
+             "val" = page_data %>% html_nodes("div.spec-value") %>% html_text()),
+    data.frame("spec" = page_data %>% html_nodes("span.label") %>% html_text(),
+             "val" = page_data %>% html_nodes("span.value") %>% html_text()),
+    data.frame("spec" = "Price",
+             "val" = page_data %>% html_nodes("div.price") %>% html_nodes("h2") %>% html_text()),
+    data.frame("spec" = "URL",
+             "val" = link)
+  )
+  
+  vehicle_data <- data.frame((t(vehicle_data)))
+  colnames(vehicle_data) <- unlist(vehicle_data[1,])
+  vehicle_data <- vehicle_data[-1,]
+  # rownames(vehicle_data)[1] <- link
+  
+  all_veh_data <- suppressWarnings(suppressMessages(bind_rows(all_veh_data, vehicle_data))) #is this better than bind_rows
+  
+  #TODO: add timing to ensure closing of dead connections
+  
+}
+```
+
+Go further by collecting all possible links to the vehicle brand, and then iterating through that in the same way:
+
+```{r}
+
+# for (i in 2:last_page){
+for (i in 2:4){
+  search_page_address <- paste0("https://www.autotrader.co.za/makemodel/make/", toupper(brand_select), "/page/", i, "/perpage/60/search")
+  #Read the search page
+  search_page <- read_html(search_page_address)
+  
+  # select all "a" tags with class "mobile-cav-link" (add #id_name before tag.name as an option)
+  search_page_elements <- html_nodes(x = search_page_0, "a.mobile-cav-link")
+  car_links <- c(car_links, search_page_elements %>% html_attr("href"))
+}
+```
+
+```{r}
+
+# for (i in 61:length(car_links)){
+for (i in 61:150){
+
+  link <- car_links[70]
+  page_data <- read_html(link)
+  
+  vehicle_data <- rbind(
+    data.frame("spec" = page_data %>% html_nodes("div.spec-name") %>% html_text(),
+             "val" = page_data %>% html_nodes("div.spec-value") %>% html_text()),
+    data.frame("spec" = page_data %>% html_nodes("span.label") %>% html_text(),
+             "val" = page_data %>% html_nodes("span.value") %>% html_text()),
+    data.frame("spec" = "Price",
+             "val" = page_data %>% html_nodes("div.price") %>% html_nodes("h2") %>% html_text()),
+    data.frame("spec" = "URL",
+             "val" = link)
+  )
+  
+  vehicle_data <- data.frame((t(vehicle_data)))
+  colnames(vehicle_data) <- unlist(vehicle_data[1,])
+  vehicle_data <- vehicle_data[-1,]
+  
+  all_veh_data <- suppressWarnings(suppressMessages(bind_rows(all_veh_data, vehicle_data))) #is this better than full_join?
+  
+}
+
+```
+
+# Cleaning
+
+Clean important numerical data:
+
+```{r}
+
+all_veh_data_copy <- cbind(all_veh_data)
+
+all_veh_data_copy <- select(all_veh_data_copy,
+                       'Registration year',
+                       Make,
+                       Model,
+                       Variant,
+                       Mileage,
+                       Price,
+                       everything())
+
+
+all_veh_data_copy$Price <- str_replace(all_veh_data_copy$Price, "R", "")
+all_veh_data_copy$Price <- str_replace(all_veh_data_copy$Price, " ", "")
+all_veh_data_copy$Price <- as.numeric(all_veh_data_copy$Price)
+
+all_veh_data_copy$Mileage <- str_replace(all_veh_data_copy$Mileage, "Km", "")
+all_veh_data_copy$Mileage <- str_replace(all_veh_data_copy$Mileage, ",", "")
+all_veh_data_copy$Mileage <- str_replace(all_veh_data_copy$Mileage, " ", "")
+all_veh_data_copy$Mileage <- as.numeric(all_veh_data_copy$Mileage)
+
+```
+
+# Analysis
+
+Present some outcomes of the data:
+
+```{r}
+
+# Mileage vs. year
+
+plot(all_veh_data_copy$Mileage, all_veh_data_copy$Price,
+     main = "Price vs. Mileage",
+     xlab = "Mileage",
+     ylab = "Price")
+
+
+# For each year: mileage vs price
+
+
+# Group by variant - show boxplot
+
+
+
+```

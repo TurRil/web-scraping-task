@@ -1,0 +1,113 @@
+---
+title: "Web Scraping IMDB with R (using rvest)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      tidy.opts=list(width.cutoff=60),
+                      tidy=TRUE)
+```
+
+In this tutorial we'll look at scraping movie data from IMDBs top 300 feature films in 2016. We'll be using the **rvest**-library for this. 
+
+**QUICK INTRO TO WEB SCRAPING**
+
+Web scraping is the process of extracting data from websites.
+* Websites are written using **HTML** (Hypertext Markup Language), a markup programming language. An HTML file, and hence a web page, consists of two main parts: HTML **tags** and content. HTML tags are the parts of a web page that define how content is formatted and displayed in a web browser. 
+* You can see how the HTML code of a web page is set up using the "inspect element"-function of any browser. Knowledge of HTML and CSS will be an advantage when working with web scraping. It's recommended that you have a look at this resource to better your knowledge: http://flukeout.github.io/. **rvest** uses CSS selectors to identify the parts of the web page to scrape.
+
+
+In this tutorial, we'll extract data from the top 300 feature films on IMDB in 2016. We'll be scraping the following data for each movie: 
+* Rank, Title, Description, Length, Genre and Rating. 
+
+To get started, we first need to load the necessary packages. 
+
+```{r}
+library(rvest)
+```
+
+# Step 1: Define the URL(s) that you want to scrape the data from.
+In this case, we have three different URLs that we want to collect data from. These are only seperated by an increasing number at the end of the link, so we'll use a for loop to iterate and store them all. 
+
+```{r}
+imdb_links <- c()
+for (i in 1:3){
+  link = paste("http://www.imdb.com/search/title?count=100&release_date=2016,2016&title_type=feature&page=",i,sep="")
+  imdb_links <- c(imdb_links,link)
+}
+imdb_links
+```
+
+# Step 2: Extract the data
+We extract relevant information from the document with `html_nodes`.This returns a set of XML element nodes, each one containing the tag and contents (e.g. text) associated with the specified CSS selectors. We have to specify a CSS selector to get exactly the data we want. Further, we'll use 'html_text' to extract only the text from the XML element-nodes. 
+
+In the end, we'll gather every datapoint in a data.frame().
+
+```{r}
+
+#First, define imdb_df, a data.frame() which will store every movie and its data in the end. 
+imdb_df <- data.frame()
+
+#iterate through all the links. 
+for (link in imdb_links){
+  
+  #Read the url with 'read_html'
+  imdb_url <- read_html(link)
+  
+  ## EXTRACTING RANK ##
+  rank_html <- html_nodes(imdb_url,css = '.text-primary')
+  ### extracting html_text only, trim=TRUE to remove whitespaces. Converting to numeric with 'as.numeric()'.
+  rank_data <- as.numeric(html_text(rank_html),trim=TRUE) 
+  
+  #EXTRACTING TITLES
+  title_html <- html_nodes(imdb_url,css = '.lister-item-header a')
+  ### extracting html_text only, trim=TRUE to remove whitespaces.
+  title_data <- html_text(title_html, trim=TRUE)
+  
+  #EXTRACTING DESCRIPTIONS
+  descriptions_html <- html_nodes(imdb_url,css = '.ratings-bar+ .text-muted')
+  descriptions_data <- html_text(descriptions_html)
+  descriptions_data <- gsub("\n","",descriptions_data) #Removing all the occurences of '\n'
+  
+  #EXTRACTING MOVIE LENGTHS
+  length_html <- html_nodes(imdb_url,css = '.text-muted .runtime')
+  length_data <- html_text(length_html)
+  length_data <- as.numeric(gsub(" min","",length_data)) #Removing all the occurences of 'min', and making data numeric
+  
+  #EXTRACTING GENRES
+  genre_html <- html_nodes(imdb_url,css = '.genre')
+  genre_data <- html_text(genre_html, trim=TRUE)
+  genre_data <- gsub(",.*","",genre_data) # using only the first genre for each movie
+  
+  #EXTRACTING RATINGS
+  ratings_html <- html_nodes(imdb_url, css = '.ratings-imdb-rating strong')
+  ratings_data <- as.numeric(html_text(ratings_html)) # converting data to numeric
+  
+  #Storing the movies for this particular link in a data frame.
+  currentMovies_df <- data.frame(Rank = rank_data, Title = title_data, Length = length_data, Genre = genre_data, Rating = ratings_data, Description = descriptions_data) 
+  
+  #Appending the movies to the imdb_df data.frame() by using rbind. 
+  imdb_df <- rbind.data.frame(imdb_df, currentMovies_df)
+}
+
+message = "Successful"; message;
+```
+
+**Let's review the results:**
+head() gives us the first rows in the dataframe. 
+
+```{r}
+  head(imdb_df)
+```
+
+We now have extracted the data that we need. We have also stored it in a data.frame(): `imdb_df`.
+
+Now, we can use this data however we want. 
+For example, let's view **only the movies that have rating > 7.0.**
+
+```{r}
+  imdb_dfWithoutDescriptions <- imdb_df[1:5] #Removing the description, as it takes up too much space.
+  subset(imdb_dfWithoutDescriptions,Rating>7.0)
+```
+As we can see, 79 movies on this list of movies on the top 300 feature in 2016 have > 7.0 in rating. 

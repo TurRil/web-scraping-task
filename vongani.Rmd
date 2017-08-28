@@ -1,0 +1,27 @@
+#Exercise 1: Web Scraper of a BuzzFeed article
+
+```{r libraries}
+library(rvest)
+library(tidyverse)
+library(stringr)
+```
+
+Step1:Read the webpage using read_html
+```{r}
+url = "https://www.buzzfeed.com/emilydugan/the-police-watchdog-wont-investigate-why-a-woman-was-held?utm_term=.uq0qm0lq2G#.iaZ2V3W28Z"
+buzzfeed_article.page=read_html(url)
+buzzfeed_article.page
+```
+
+
+Step2: Use html_nodes() to extract a set of XML elemet nodes from the read webpage, which contains element tags and the contents associated with a CSS selector.  
+```{r}
+buzzfeed.elements=html_nodes(x = buzzfeed_article.page, css = "h1 , p")
+buzzfeed.elements
+```
+
+Step3: Use html_nodes() to extract only the text content from the XML element nodes 
+```{r}
+buzzfeed.text=html_text(buzzfeed.elements, trim = TRUE) 
+as.tibble(buzzfeed.text)
+```

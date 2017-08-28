@@ -1,0 +1,48 @@
+---
+title: "DSWGID001 (Webscrape)"
+author: "Jaco de Swardt"
+date: "8/22/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Websrape
+
+In this webscrape tutorial, the log of the Currie Cup is scraped from the Sport24 website. The idea of this is to be able to gain data or a table from which one can do analysis on.
+
+##Installing necessary packages for webscraping
+```{r}
+install.packages("rvest")
+install.packages("tidyverse")
+install.packages("stringr")
+library(rvest)
+library(tidyverse)
+library(stringr)
+```
+
+##Opening the webpage
+```{r}
+SPORT24_PAGE <- read_html("http://www.sport24.co.za/Rugby/CurrieCup/Logs")
+```
+
+##Extracting table elements
+```{r}
+SPORT24 <- html_nodes(x=SPORT24_PAGE, css="table")
+```
+
+##Viewing extracted elements
+```{r}
+SPORT24
+```
+
+##Extracting the tables within the first element
+```{r}
+LOG <- html_table(SPORT24[[1]])
+print(LOG)
+```
+
+
+

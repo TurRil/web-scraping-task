@@ -1,0 +1,154 @@
+---
+title: "Gumtree Web-scraping Tutorial"
+author: "Njabulo Dube"
+date: ''
+output: html_document
+keep_md: TRUE
+---
+
+## Introduction
+I really cannot wait until I can afford my first car. Lately I've been looking through various websites, trying to see what is available around my area in terms of used vehicles so that I can make an informed decision should the opportunity arise.
+
+Lo and behold, I just learnt how to webscrape a website. This tutorial puts this newly found knowledge to the test and (hopefully) will assist me (and any other reader of this tutorial) in gathering data about used cars in a particular area.
+
+## Preliminaries
+Ensure that the **SelectorGadget** tool is available and enabled in your web browser's toolbar. Go to http://selectorgadget.com/ and find the link that says "drag this link to your bookmark bar": do that. You only need to do this once. The **SelectorGadget** will finds the CSS selector identifiers of the HTML elements by matching tags and tag attributes.
+
+We'll use the **rvest** package, which uses CSS selectors to identify the parts of the web page to scrape, to input them into R as strings.
+
+First, we load the packages that will assist with the task at hand. 
+
+```{r warning=FALSE, message=FALSE}
+library(rvest)
+library(tidyverse)
+library(stringr)
+```
+
+Now let's visit the [Gumtree](https://www.gumtree.co.za/s-cars-bakkies/cape-town/v1c9077l3100006p1) webpage. If you are in a different area, then navigate to that page via the search bar available on the home page.
+
+We first read in the webpage using `read_html`. This simply reads in an HTML document, which can be from a url, a file on disk or a string. It returns an XML (another markup language) document.
+
+After reading in the website site, we get the links of all the pages which have ads that meet given criteria (e.g. location). In this case I searched for all vehicles in Cape Town. 
+
+```{r}
+url = "https://www.gumtree.co.za/s-cars-bakkies/cape-town/v1c9077l3100006p1"
+vehicles = read_html(url)
+
+# get the pages after the home page
+pages = vehicles %>% html_nodes(".after a") %>% html_attr("href")
+
+number_of_ads = vehicles %>% html_nodes(".pagination-results-count span") %>% html_text(trim = TRUE) %>% 
+              word(6) %>% str_trim() %>% str_replace(",","") %>% as.numeric()
+
+# Each page has 20 ads, so calculate number of pages for all ads
+if(number_of_ads > 20)
+{
+  last_page = floor(number_of_ads/20)
+}else
+{
+  last_page = 1
+}
+
+i = 1:last_page # get all the pages
+links_template = str_c("/s-cars-bakkies/cape-town/","page-", i,"/v1c9077l3100006p",i)
+print(links_template[1:5]) # print first 5 links
+```
+
+We then concatenate the links for all the ads to the base website "https://www.gumtree.co.za" to obtain, for example, "https://www.gumtree.co.za/s-cars-bakkies/cape-town/page-103/v1c9077l3100006p103" for the 103th page.
+
+```{r eval=F}
+template = "https://www.gumtree.co.za"
+pages = str_c(template, links_template)
+```
+
+For each page, we get the links of all the vehicle ads on that page.
+
+```{r eval=F}
+vehicle_pages <- c() 
+for(i in pages[1:20]) # Doing the first 20 pages as an illustration 
+{
+  vehicle_i = read_html(i)
+  
+  # the links are in the form .../vehicle_i
+  # Getting all the links to each vehicle from page i
+  vehicle_i_links = vehicle_i %>% html_nodes(".href-link") %>% html_attr("href") 
+  
+  #include the https://.../vehicle_i
+  vehicle_links_i = str_c(template, vehicle_i_links)
+  vehicle_pages = c(vehicle_pages, vehicle_links_i)
+  
+  # random wait avoids excessive requesting
+  Sys.sleep(sample(seq(5, 15, by=1), 1))
+}
+
+# remove duplicates
+vehicle_pages = sample(unique(vehicle_pages))
+
+# Check how many ads were duplicated
+duplicated_ads = number_of_ads - length(vehicle_pages)
+```
+
+We now read each of the vehicle pages and extract the data we want from each vehicle ad.
+
+```{r eval=F}
+vehicle_data <- data.frame()
+for(i in vehicle_pages[1:100])  # we do 100 ads for example
+{
+  
+  # read vehicle ad html
+  vehicle = read_html(i)
+  
+  # get the title of the ad 
+  title = vehicle %>% html_nodes(css = ".myAdTitle") %>% html_text(trim = T)
+
+  # get vehicle data
+  price = vehicle %>% html_nodes(css = ".amount") %>% html_text(trim = TRUE)
+  make = vehicle  %>% html_nodes(css = "li:nth-child(5) .value") %>% html_text(trim = TRUE)
+  model = vehicle  %>% html_nodes(css = "li:nth-child(7) .value") %>% html_text(trim = TRUE)
+  location = vehicle  %>% html_nodes(css = ".location a") 
+  
+  body_type = vehicle  %>% html_nodes(css = "li:nth-child(8) .value") %>% html_text(trim = TRUE)
+  year = vehicle  %>% html_nodes(css = "li:nth-child(9) .value") %>% html_text(trim = TRUE) %>% as.numeric()
+  kilometers = vehicle  %>% html_nodes(css = "li:nth-child(10) .value") %>% html_text(trim = TRUE) %>% as.numeric()
+  transmission = vehicle  %>% html_nodes(css = "li:nth-child(11) .value") %>% html_text(trim = TRUE)
+  fuel_type = vehicle  %>% html_nodes(css = "li:nth-child(12) .value") %>% html_text(trim = TRUE)
+  colour = vehicle  %>% html_nodes(css = "meta+ li .name+ .value") %>% html_text(trim = TRUE)
+  ad = vehicle  %>% html_nodes(css = ".pre") %>% html_text(trim = TRUE)
+  
+  vehicle_attributes = c("title", "price", "make", "model", "body_type", 
+                         "year", "kilometers", "transmission", "fuel_type", "colour", "ad")
+  
+  # if couldn't find data on webpage, replace with NA
+  for(i in vehicle_attributes)
+  {
+    assign(i, ifelse(length(get(i)) > 0, get(i), NA))
+  }
+    
+  price = price[1] # set price to the first one on list
+  # make the price into a numeric
+  price = price %>% str_replace("^[A-Za-z]*","") %>% str_trim() %>% str_replace(",","") %>% as.numeric()
+  location = ifelse(length(location) > 0, html_text(location, trim = TRUE), NA)
+  
+  # store results
+  this_vehicle = data.frame(title = title, price = price, make = make, model = model, body_type = body_type,
+                            year = year, kilometers = kilometers, transmission = transmission, 
+                            fuel_type = fuel_type, colour = colour, ad = ad)
+  vehicle_data = rbind.data.frame(vehicle_data, this_vehicle)
+  
+  # random wait avoids excessive requesting
+  Sys.sleep(sample(seq(10, 30, by=1), 1))
+}
+
+save(vehicle_data, file = "output/Used_Vehicles.RData")
+```
+
+The vehicle ads are saved as a .RData file for further analysis. 
+
+Below is a sample of 5 ads extracted from the 100 ads I ran to see the structure of the dataframe. The title of the ad and the ad itself is not included in the output below.
+```{r}
+load("output/Used_Vehicles.RData")
+print.data.frame(vehicle_data[1:5,2:10])
+```
+
+## Sources and References
+Most of the code has been adapted from Ian Durbach lecture on webscraping, which is available here: [Lesson 3 // Web Scraping](https://github.com/iandurbach/datasci-fi/blob/master/lesson3-web-scraping.ipynb)

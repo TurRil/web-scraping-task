@@ -1,0 +1,81 @@
+---
+title: "Lesson 3 - Web Scraping"
+author: "Delyno du Toit"
+date: "8/20/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<!-- Load the libraries-->
+```{r}
+library(rvest)
+library(tidyverse)
+library(stringr)
+```
+
+Scraping gumtree.co.za for harley-davidson ads
+ 
+Go to gumtree.co.za and click on "Motorcycles & Scooters". On the left sidebar, go to "Make" and select "Harley-Davidson".  This brings up the first page of harley-davidsons for sale.  INcluded in the page at the bottom are the number of pages are links to further pages displaying harley-davidsons for sale.  First we read in the first page and identify all hyperlinks on that page.
+
+```{r read, echo = FALSE, include = TRUE}
+hd <- read_html("https://www.gumtree.co.za/s-motorcycles-scooters/harley+davidson/v1c9027a1map1")
+hd_links <- hd %>% html_nodes("a") %>% html_attr("href") 
+print(hd_links)
+```
+
+Next, we need to identify just those hyperlinks that load pages with harley-davidons summaries. Within the url the string "/s-motorcycles-scooters/harley" refers to the page links
+
+```{r pages, , echo = FALSE, include = TRUE}
+hd_pages <- str_subset(hd_links,"(/s-motorcycles-scooters/harley).*(page)")
+hd_pages <- paste0("https://www.gumtree.co.za", hd_pages)
+hd_pages
+```
+
+For each of the summary pages, we extract the hyperlinks that lead to the full harley-davison ads.  The url changes now from "/s-motorcycles-scooters/harley" to "/a-motorcycles-scooters/harley"
+```{r detail, echo = FALSE, include = TRUE}
+hd_links <- c()
+for(i in hd_pages){
+  hd_i <- read_html(i)
+  hd_i_links <- hd_i %>% html_nodes("a") %>% html_attr("href") 
+  hd_links_i <- str_subset(hd_i_links,".*a-motorcycles-scooters")
+  hd_links <- c(hd_links, hd_links_i)
+}
+# remove any duplicates and reorder
+hd_links <- sample(unique(hd_links))
+hd_links
+```
+
+
+Now read each of those pages and extract the data we want. 
+```{r dataframe, echo = FALSE, include = TRUE}}
+hd_data <- data.frame()
+for(i in hd_links){   
+  
+      # read hd ad html
+  hd <- read_html(paste0("https://www.gumtree.co.za",i))
+  
+      # get the ad text 
+  title <- hd %>% html_nodes(css = ".myAdTitle") %>% html_text(trim = T)
+
+    # get hd data
+  amount <- hd %>% html_nodes(css = ".amount") %>% html_text(trim = TRUE)
+  description <- hd %>% html_nodes(css = ".description") 
+
+
+    # if couldn't find data on webpage, replace with NA
+  amount <- ifelse(length(amount) > 0, amount, NA)
+  description <- ifelse(length(description) > 0, html_text(description, trim = TRUE), NA)
+
+  
+    # store results
+  this_hd <- data.frame(title = title, amount = amount, description = description)
+  hd_data <- rbind.data.frame(hd_data,this_hd)
+  
+hd_data
+  
+}
+```
+

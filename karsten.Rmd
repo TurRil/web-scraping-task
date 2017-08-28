@@ -1,0 +1,134 @@
+---
+title: "ScrapingTutorial"
+author: "Karsten"
+date: "21 August 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      tidy.opts=list(width.cutoff=60),
+                      tidy=TRUE)
+```
+
+#Web-scraping tutorial
+
+First install all the packages below, do this by RStudio, the R-shell with
+the command "install.packages("<wanted package")" or other perfered method.
+
+```{r}
+library(rvest)
+library(tidyverse)
+library(stringr)
+```
+
+Loading in the page, in this case the page of Fox News. Doing this by using "read_html",
+from the "rvest" package. This takes in and read a webpage.
+
+```{r}
+fox_page <- read_html("http://www.foxnews.com/")
+```
+
+Now we want to get some of the headlines that are "Breaking News" this day. First we
+will look at what is the main headline. The webpage is built up as a CSS (Cascading Style sheet).
+This style the page by using codes that style the page in the manner desired.
+For example the size of the headings are coded with "h<number>" where <number> is replaced by an
+integer with bigger integers meaning smaller headings.
+Now we will read the main healine of Fox News at this time. The command "html_nodes" will do this for us.
+This takes in a webpage and a css-string. To get what is in the css-string you can use a addon like Selector-
+Gagdet in chrome or just inspect the page.
+
+```{r}
+fox_main_heading <- html_nodes(x = fox_page, css = "h1 a")
+fox_main_heading
+```
+
+Note that this may give two or more URLs, this is because more than the main headline use this CSS-coding.
+Going back to the CSS-selector noticing that putting on #big-top in the start will fix this.
+
+```{r}
+fox_main_heading <- html_nodes(x = fox_page, css = "#big-top h1 a")
+fox_main_heading
+```
+
+Now we want to see what is in the headline. Doing this by using "html_text". Anabling the trim option to get rid
+of unnecessary white spaces.
+
+```{r}
+fox_main_heading_text <- html_text(fox_main_heading, trim = TRUE)
+fox_main_heading_text
+```
+
+Now we may want to have a list of other headlines on Fox News. Using the CSS-selector it seems most other headings
+use the h3 CSS-code.
+
+```{r}
+fox_headings <- html_nodes(x = fox_page, css = "h3")
+fox_headings_text <- html_text(fox_headings, trim = TRUE)
+fox_headings_text
+```
+
+Under is a function which takes in a list of news headlines and a word and returns all the headlines which contains this word. To do this it iterates through the list and use the function "grepl" to check. The fixed=TRUE is used to avoid signs like + and * to be interpreted as regex expressions.
+
+```{r}
+containsWord <- function(
+  headings_list,
+  word){
+    wanted_headings <- c()
+    for(i in headings_list){
+      if(grepl(word,i,fixed=TRUE)){
+        wanted_headings <- c(wanted_headings, i)
+      }
+    }
+    return(wanted_headings)
+}
+```
+
+
+Under the function is called to see headings from Fox News containing "Trump".
+```{r}
+trump_headlines <- containsWord(fox_headings_text, "Trump")
+trump_headlines
+```
+
+Now we'll make a table over all the matches that are left in the Premier League. First we read the html page from theguardian.
+```{r}
+matches_page <- read_html("https://www.theguardian.com/football/premierleague/fixtures")
+```
+
+Then extract the home and away teams. Doing this by using css coding.
+```{r}
+matches_homeTeam <- html_nodes(x = matches_page, css = ".football-match__team--home")
+matches_awayTeam <- html_nodes(x = matches_page, css = ".football-match__team--away")
+```
+
+
+Making variables on text-form and triming them to get rid of unnecessary lineshits and blank spaces.
+```{r}
+homeTeams <- html_text(matches_homeTeam, trim=TRUE)
+awayTeams <- html_text(matches_awayTeam, trim=TRUE)
+
+homeTeams
+awayTeams
+```
+
+Then we use the data_frame command to make a table with which teams will be playing.
+```{r}
+premier_table <- data.frame(homeTeams, awayTeams)
+premier_table
+```
+
+It might be useful to see the number of times a variable is listed. Then we can make a dataframe like this. Under we list the amount of home matches left for the teams.
+
+```{r}
+num_homeMatches <- as.data.frame(table(homeTeams))
+num_homeMatches
+```
+
+To plot this as a barchart we can use the "barplot" function and specify which axis we want to have the different values on.
+
+```{r}
+barplot(num_homeMatches$Freq, names.arg = num_homeMatches$homeTeams, main = "Number of home matches left", xlab="Team", ylab="Matches")
+``` 
+
+#Sorry for the names of the teames being to long to represent the bars in a more visually correct. But hope this guide was of some use. 

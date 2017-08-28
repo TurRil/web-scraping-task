@@ -1,0 +1,76 @@
+---
+title: "The Washington Post vs New York Times: Number of Trump occurences"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      tidy.opts=list(width.cutoff=60),
+                      tidy=TRUE)
+```
+
+#R Markdown
+Web scraping is the process of extracting data from websites. It can be done manually, but typically when we talk of web scraping we mean gathering data from websites by automated means. Web scraping involves two distinct processes: fetching or downloading the web page, and extracting data from it. In this lesson we introduce the rvest #package, which provides various web scraping functions. 
+Required libraries
+```{r}
+library(rvest)
+```
+
+
+Let us use the rvest "read_html" to properly read the HTML in the two web papers
+```{r}
+page <- read_html("https://www.nytimes.com/?mcubz=3")
+wpost <- read_html("https://www.washingtonpost.com/")
+```
+
+By using the key ".story-heading" one can easily collect the headlines at New York Times by using "html_nodes". To get the actual heading-text, and not heading-paths, one can use "html_text" and set "trim=TRUE".
+```{r}
+headlines_path <- html_nodes(x = page, css = ".story-heading")
+headlines <- html_text(headlines_path, trim=TRUE)
+```
+
+Collecting the headers for The Washington Post in the same fashion
+```{r}
+wpost_headlines_path <- html_nodes(x = wpost, css = ".text-align-inherit")
+wpost_headlines <- html_text(wpost_headlines_path, trim=TRUE)
+```
+
+One can collect the corresponding sub-text in the newspaper in the following way.  Sub-text is equivalent to the text just below the headlines in the newspaper.
+```{r}
+subtexts_path <- html_nodes(x = page, css = ".story-heading , .inside-nyt , .summary , #top-news li")
+subtexts <- html_text(subtexts_path, trim=TRUE)
+```
+
+One can collect the corresponding sub-text in the newspaper in the following way for The Washington Post.
+```{r}
+wpost_subtext_path <- html_nodes(x = wpost, css = ".normal-style")
+wpost_subtext <- html_text(wpost_subtext_path, trim=TRUE)
+```
+
+In order to count the number of times the word "Trump" occurs in the headlines at New York Times, one can use the function "grep". The length of the returned vector will be the number of times the given word occurs.
+```{r}
+trump_headline_occurences <- length(grep("Trump", headlines))
+sprintf("The number of Trump occurences in headlines in NYT is: %s", trump_headline_occurences)
+```
+
+Counting the number of Trump occurences in subtexts in the New York Times
+```{r}
+trump_subtext_occurences <- length(grep("Trump", subtexts))
+sprintf("The number of Trump occurences in subtexts in NYT is: %s", trump_subtext_occurences)
+```
+
+Counting the number of Trump occurences in subtexts in The Washington Post. Feel free to change the word "Trump" in order to find the frequency of other words on the front page of the news papers. 
+```{r}
+trump_headline_occurences_w <- length(grep("Trump", wpost_headlines))
+sprintf("Wheras the number of Trump occurences in headlines in WPOST is: %s", trump_headline_occurences_w)
+```
+
+Show count of Trump occerences in The Washington Post subtexts
+```{r}
+trump_subtext_occurences_w <- length(grep("Trump", wpost_subtext))
+sprintf("and the number of Trump occurences in subtexts in WPOST is: %s", trump_subtext_occurences_w)
+```
+
+#Conclusion
+```{r}
+sprintf("Well, the New York Times has a total of %s occurences of the word \'Trump\' at their front page, while The Washington Post has a total of %s. Excpected? Hm, debateable.", sum(trump_subtext_occurences, trump_headline_occurences), sum(trump_subtext_occurences_w, trump_headline_occurences_w))
+```
