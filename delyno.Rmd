@@ -50,7 +50,7 @@ hd_links
 
 
 Now read each of those pages and extract the data we want. 
-```{r dataframe, echo = FALSE, include = TRUE}}
+```{r dataframe, echo = FALSE, include = TRUE}
 hd_data <- data.frame()
 for(i in hd_links){   
   
@@ -73,9 +73,8 @@ for(i in hd_links){
     # store results
   this_hd <- data.frame(title = title, amount = amount, description = description)
   hd_data <- rbind.data.frame(hd_data,this_hd)
-  
-hd_data
-  
 }
+
+hd_data
 ```
 
